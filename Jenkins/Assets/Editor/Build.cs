@@ -117,10 +117,16 @@ public static class Build
             }
 
             // 获取场景列表
-            string[] scenes = EditorBuildSettings.scenes
-                .Where(scene => scene.enabled)
-                .Select(scene => scene.path)
-                .ToArray();
+            string[] scenes = GetBuildScenes();
+            
+            if (scenes.Length == 0)
+            {
+                Debug.LogError("[BuildScript] 没有找到可用的场景文件，构建失败");
+                EditorApplication.Exit(1);
+                return;
+            }
+            
+            Debug.Log($"[BuildScript] 将构建以下场景: {string.Join(", ", scenes)}");
             
             // 设置构建选项
             BuildOptions buildOptions = BuildOptions.None;
@@ -185,6 +191,67 @@ public static class Build
             default:
                 return $"{folder}/MyGame";
         }
+    }
+
+    /// <summary>
+    /// 获取构建场景列表
+    /// </summary>
+    private static string[] GetBuildScenes()
+    {
+        // 首先尝试从EditorBuildSettings获取启用的场景
+        string[] enabledScenes = EditorBuildSettings.scenes
+            .Where(scene => scene.enabled && !string.IsNullOrEmpty(scene.path))
+            .Select(scene => scene.path)
+            .ToArray();
+            
+        if (enabledScenes.Length > 0)
+        {
+            Debug.Log($"[BuildScript] 从Build Settings中找到 {enabledScenes.Length} 个启用的场景");
+            return enabledScenes;
+        }
+        
+        Debug.LogWarning("[BuildScript] Build Settings中没有启用的场景，正在自动查找项目中的场景文件...");
+        
+        // 自动查找项目中的所有场景文件
+        string[] allScenes = FindAllSceneFiles();
+        
+        if (allScenes.Length > 0)
+        {
+            Debug.Log($"[BuildScript] 自动找到 {allScenes.Length} 个场景文件，将自动添加到构建中");
+            
+            // 自动将找到的场景添加到EditorBuildSettings中
+            EditorBuildSettingsScene[] buildScenes = allScenes
+                .Select(scenePath => new EditorBuildSettingsScene(scenePath, true))
+                .ToArray();
+                
+            EditorBuildSettings.scenes = buildScenes;
+            Debug.Log("[BuildScript] 已自动更新Build Settings中的场景列表");
+            
+            return allScenes;
+        }
+        
+        Debug.LogError("[BuildScript] 项目中没有找到任何场景文件(.unity)");
+        return new string[0];
+    }
+    
+    /// <summary>
+    /// 查找项目中的所有场景文件
+    /// </summary>
+    private static string[] FindAllSceneFiles()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Scene");
+        string[] scenePaths = guids
+            .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
+            .Where(path => !string.IsNullOrEmpty(path) && path.EndsWith(".unity"))
+            .ToArray();
+            
+        Debug.Log($"[BuildScript] 在项目中找到以下场景文件:");
+        foreach (string scenePath in scenePaths)
+        {
+            Debug.Log($"[BuildScript] - {scenePath}");
+        }
+        
+        return scenePaths;
     }
 
     /// <summary>
