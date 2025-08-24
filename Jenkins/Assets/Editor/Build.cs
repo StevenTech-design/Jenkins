@@ -8,101 +8,73 @@ using UnityEngine;
 public static class Build
 {
     /// <summary>
-    /// Jenkins调用的Android构建方法
+    /// Jenkins调用的构建方法 - 从命令行参数读取配置
     /// </summary>
-    public static void BuildAndroid()
+    public static void BuildGame()
     {
-        var args = Environment.GetCommandLineArgs();
-        string buildType = GetCommandLineArg(args, "-buildType", "Release");
-        bool isDevelopBuild = buildType.ToLower() == "debug" || buildType.ToLower() == "development";
+        // 从命令行参数中读取配置
+        string[] args = System.Environment.GetCommandLineArgs();
+        string platform = "Android"; // 默认平台
+        bool isDev = false; // 默认非开发版本
         
-        Debug.Log($"[BuildScript] Jenkins Android构建开始，构建类型: {buildType}");
-        PerformBuild(BuildTarget.Android, isDevelopBuild);
-    }
-
-    /// <summary>
-    /// Jenkins调用的iOS构建方法
-    /// </summary>
-    public static void BuildiOS()
-    {
-        var args = Environment.GetCommandLineArgs();
-        string buildType = GetCommandLineArg(args, "-buildType", "Release");
-        bool isDevelopBuild = buildType.ToLower() == "debug" || buildType.ToLower() == "development";
-        
-        Debug.Log($"[BuildScript] Jenkins iOS构建开始，构建类型: {buildType}");
-        PerformBuild(BuildTarget.iOS, isDevelopBuild);
-    }
-
-    /// <summary>
-    /// Jenkins调用的WebGL构建方法
-    /// </summary>
-    public static void BuildWebGL()
-    {
-        var args = Environment.GetCommandLineArgs();
-        string buildType = GetCommandLineArg(args, "-buildType", "Release");
-        bool isDevelopBuild = buildType.ToLower() == "debug" || buildType.ToLower() == "development";
-        
-        Debug.Log($"[BuildScript] Jenkins WebGL构建开始，构建类型: {buildType}");
-        PerformBuild(BuildTarget.WebGL, isDevelopBuild);
-    }
-
-    /// <summary>
-    /// Jenkins调用的Windows构建方法
-    /// </summary>
-    public static void BuildWindows()
-    {
-        var args = Environment.GetCommandLineArgs();
-        string buildType = GetCommandLineArg(args, "-buildType", "Release");
-        bool isDevelopBuild = buildType.ToLower() == "debug" || buildType.ToLower() == "development";
-        
-        Debug.Log($"[BuildScript] Jenkins Windows构建开始，构建类型: {buildType}");
-        PerformBuild(BuildTarget.StandaloneWindows64, isDevelopBuild);
-    }
-
-    /// <summary>
-    /// Jenkins调用的全平台构建方法
-    /// </summary>
-    public static void BuildAll()
-    {
-        var args = Environment.GetCommandLineArgs();
-        string buildType = GetCommandLineArg(args, "-buildType", "Release");
-        bool isDevelopBuild = buildType.ToLower() == "debug" || buildType.ToLower() == "development";
-        
-        Debug.Log($"[BuildScript] Jenkins 全平台构建开始，构建类型: {buildType}");
-        
-        // 依次构建所有平台
-        BuildTarget[] platforms = { BuildTarget.Android, BuildTarget.iOS, BuildTarget.WebGL, BuildTarget.StandaloneWindows64 };
-        string[] platformNames = { "Android", "iOS", "WebGL", "Windows" };
-        
-        for (int i = 0; i < platforms.Length; i++)
+        // 解析命令行参数
+        for (int i = 0; i < args.Length; i++)
         {
-            try
+            if (args[i] == "-platform" && i + 1 < args.Length)
             {
-                Debug.Log($"[BuildScript] 开始构建 {platformNames[i]} 平台...");
-                PerformBuild(platforms[i], isDevelopBuild);
-                Debug.Log($"[BuildScript] {platformNames[i]} 平台构建完成");
+                platform = args[i + 1];
             }
-            catch (Exception e)
+            else if (args[i] == "-isDev" && i + 1 < args.Length)
             {
-                Debug.LogError($"[BuildScript] {platformNames[i]} 平台构建失败: {e.Message}");
-                // 继续构建其他平台，不中断整个流程
+                bool.TryParse(args[i + 1], out isDev);
             }
         }
         
-        Debug.Log($"[BuildScript] 全平台构建流程结束");
+        Debug.Log($"[BuildScript] 开始构建 - 平台: {platform}, 开发版本: {isDev}");
+        
+        BuildTarget buildTarget = GetBuildTarget(platform);
+        PerformBuild(buildTarget, isDev);
+    }
+    
+    /// <summary>
+    /// 直接调用的构建方法（保留兼容性）
+    /// </summary>
+    /// <param name="platform">构建平台 (android, ios, webgl, windows)</param>
+    /// <param name="isDev">是否为开发版本</param>
+    public static void BuildGameDirect(string platform, bool isDev = false)
+    {
+        Debug.Log($"[BuildScript] 直接调用构建 - 平台: {platform}, 开发版本: {isDev}");
+        
+        BuildTarget buildTarget = GetBuildTarget(platform);
+        PerformBuild(buildTarget, isDev);
+    }
+    
+    /// <summary>
+    /// 获取构建目标平台
+    /// </summary>
+    private static BuildTarget GetBuildTarget(string platform)
+    {
+        switch (platform.ToLower())
+        {
+            case "android":
+                return BuildTarget.Android;
+            case "ios":
+                return BuildTarget.iOS;
+            case "webgl":
+                return BuildTarget.WebGL;
+            case "windows":
+                return BuildTarget.StandaloneWindows64;
+            default:
+                Debug.LogWarning($"[BuildScript] 未知平台: {platform}, 默认使用Android");
+                return BuildTarget.Android;
+        }
     }
 
-    /// <summary>
-    /// 核心构建方法
-    /// </summary>
-    private static void PerformBuild(BuildTarget buildTarget, bool isDevelopBuild)
+    private static void PerformBuild(BuildTarget buildTarget, bool isDev)
     {
         try
         {
-            Debug.Log($"[BuildScript] === Unity构建开始 ===");
-            Debug.Log($"[BuildScript] Unity版本: {Application.unityVersion}");
-            Debug.Log($"[BuildScript] 构建平台: {buildTarget}, 开发构建: {isDevelopBuild}");
-            Debug.Log($"[BuildScript] 构建时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            Debug.Log($"[BuildScript] 开始构建 {buildTarget}, 开发版本: {isDev}");
             
             // 获取输出路径
             string outputPath = GetOutputPath(buildTarget);
@@ -113,27 +85,19 @@ public static class Build
             if (!Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
-                Debug.Log($"[BuildScript] 创建输出目录: {directory}");
             }
 
             // 获取场景列表
             string[] scenes = GetBuildScenes();
-            
-            if (scenes.Length == 0)
-            {
-                Debug.LogError("[BuildScript] 没有找到可用的场景文件，构建失败");
-                EditorApplication.Exit(1);
-                return;
-            }
-            
-            Debug.Log($"[BuildScript] 将构建以下场景: {string.Join(", ", scenes)}");
+            Debug.Log($"[BuildScript] 找到 {scenes.Length} 个场景");
             
             // 设置构建选项
             BuildOptions buildOptions = BuildOptions.None;
-            if (isDevelopBuild)
+            if (isDev)
             {
                 buildOptions |= BuildOptions.Development;
                 buildOptions |= BuildOptions.AllowDebugging;
+                Debug.Log($"[BuildScript] 启用开发模式构建选项");
             }
             
             // 执行构建
@@ -147,132 +111,61 @@ public static class Build
 
             BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
             
-            // 输出构建结果
-            Debug.Log($"[BuildScript] 构建结果: {report.summary.result}");
-            Debug.Log($"[BuildScript] 构建耗时: {report.summary.totalTime.TotalSeconds:F2}秒");
-            Debug.Log($"[BuildScript] === Unity构建结束 ===");
-            
-            if (report.summary.result != BuildResult.Succeeded)
+            if (report.summary.result == BuildResult.Succeeded)
             {
-                Debug.LogError($"[BuildScript] 构建失败，错误数量: {report.summary.totalErrors}");
+                Debug.Log($"[BuildScript] 构建成功！");
+            }
+            else
+            {
+                Debug.LogError($"[BuildScript] 构建失败");
                 EditorApplication.Exit(1);
             }
         }
         catch (Exception e)
         {
-            Debug.LogError($"[BuildScript] 构建失败: {e.Message}");
-            Debug.LogError($"[BuildScript] 堆栈跟踪: {e.StackTrace}");
+            Debug.LogError($"[BuildScript] 构建异常: {e.Message}");
             EditorApplication.Exit(1);
         }
     }
 
-    /// <summary>
-    /// 获取输出路径
-    /// </summary>
+    private static string[] GetBuildScenes()
+    {
+        string[] scenes = EditorBuildSettings.scenes
+            .Where(scene => scene.enabled)
+            .Select(scene => scene.path)
+            .ToArray();
+            
+        if (scenes.Length == 0)
+        {
+            scenes = AssetDatabase.FindAssets("t:Scene")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .ToArray();
+        }
+        
+        return scenes;
+    }
+
     private static string GetOutputPath(BuildTarget buildTarget)
     {
         string projectRoot = Application.dataPath.Replace("/Assets", "");
         string platformName = buildTarget.ToString().ToLower();
-        
-        // 与Jenkins shell脚本保持一致的路径结构
         string folder = $"{projectRoot}/builds/{platformName}";
         
-        // 根据平台类型返回不同的输出路径
+        // 生成时间戳 (年月日时分秒)
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+        
         switch (buildTarget)
         {
             case BuildTarget.Android:
-                return $"{folder}/MyGame.apk";
+                return $"{folder}/MyGame_{timestamp}.apk";
             case BuildTarget.iOS:
-                return $"{folder}/iOS-Build"; // iOS输出为目录
+                return $"{folder}/iOS-Build_{timestamp}";
             case BuildTarget.WebGL:
-                return $"{folder}/WebGL-Build"; // WebGL输出为目录
+                return $"{folder}/WebGL-Build_{timestamp}";
             case BuildTarget.StandaloneWindows64:
-                return $"{folder}/MyGame.exe";
+                return $"{folder}/MyGame_{timestamp}.exe";
             default:
-                return $"{folder}/MyGame";
+                return $"{folder}/MyGame_{timestamp}";
         }
-    }
-
-    /// <summary>
-    /// 获取构建场景列表
-    /// </summary>
-    private static string[] GetBuildScenes()
-    {
-        // 首先尝试从EditorBuildSettings获取启用的场景
-        string[] enabledScenes = EditorBuildSettings.scenes
-            .Where(scene => scene.enabled && !string.IsNullOrEmpty(scene.path))
-            .Select(scene => scene.path)
-            .ToArray();
-            
-        if (enabledScenes.Length > 0)
-        {
-            Debug.Log($"[BuildScript] 从Build Settings中找到 {enabledScenes.Length} 个启用的场景");
-            return enabledScenes;
-        }
-        
-        Debug.LogWarning("[BuildScript] Build Settings中没有启用的场景，正在自动查找项目中的场景文件...");
-        
-        // 自动查找项目中的所有场景文件
-        string[] allScenes = FindAllSceneFiles();
-        
-        if (allScenes.Length > 0)
-        {
-            Debug.Log($"[BuildScript] 自动找到 {allScenes.Length} 个场景文件，将自动添加到构建中");
-            
-            // 自动将找到的场景添加到EditorBuildSettings中
-            EditorBuildSettingsScene[] buildScenes = allScenes
-                .Select(scenePath => new EditorBuildSettingsScene(scenePath, true))
-                .ToArray();
-                
-            EditorBuildSettings.scenes = buildScenes;
-            Debug.Log("[BuildScript] 已自动更新Build Settings中的场景列表");
-            
-            return allScenes;
-        }
-        
-        Debug.LogError("[BuildScript] 项目中没有找到任何场景文件(.unity)");
-        return new string[0];
-    }
-    
-    /// <summary>
-    /// 查找项目中的所有场景文件
-    /// </summary>
-    private static string[] FindAllSceneFiles()
-    {
-        string[] guids = AssetDatabase.FindAssets("t:Scene");
-        string[] scenePaths = guids
-            .Select(guid => AssetDatabase.GUIDToAssetPath(guid))
-            .Where(path => !string.IsNullOrEmpty(path) && path.EndsWith(".unity"))
-            .ToArray();
-            
-        Debug.Log($"[BuildScript] 在项目中找到以下场景文件:");
-        foreach (string scenePath in scenePaths)
-        {
-            Debug.Log($"[BuildScript] - {scenePath}");
-        }
-        
-        return scenePaths;
-    }
-
-    /// <summary>
-    /// 获取命令行参数
-    /// </summary>
-    private static T GetCommandLineArg<T>(string[] args, string name, T defaultValue)
-    {
-        for (int i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == name)
-            {
-                try
-                {
-                    return (T)Convert.ChangeType(args[i + 1], typeof(T));
-                }
-                catch
-                {
-                    return defaultValue;
-                }
-            }
-        }
-        return defaultValue;
     }
 }
